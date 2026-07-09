@@ -130,11 +130,17 @@ button {
   background-size: 96px 96px, 142px 142px;
 }
 
-.settings-trigger {
+.top-tools {
   position: fixed;
   top: 24px;
   right: 24px;
   z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-trigger {
   display: inline-flex;
   width: 44px;
   height: 44px;
@@ -658,42 +664,53 @@ input[readonly] {
 .result-area {
   position: relative;
   z-index: 1;
-  max-width: 1120px;
+  display: grid;
+  width: min(100%, 860px);
+  max-width: 860px;
+  min-height: 100vh;
+  height: 100vh;
   margin: 0 auto;
   padding: 96px 24px 52px;
+  overflow: hidden;
 }
 
 .composer-closed .result-area {
-  display: grid;
-  min-height: 100vh;
   align-items: center;
 }
 
 .result-shell {
   display: grid;
-  gap: 16px;
-  width: 100%;
-}
-
-.result-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
+  width: 100%;
+  height: min(760px, calc(100vh - 148px));
+  max-height: calc(100vh - 148px);
+  min-height: 0;
 }
 
-.result-head h1 {
+.result-top {
+  position: relative;
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.result-top p {
   margin: 0;
   color: oklch(0.2 0.034 248);
-  font-size: 1.45rem;
-  line-height: 1.25;
+  font-size: 1.72rem;
+  font-weight: 900;
+  line-height: 1.36;
+  text-align: center;
   text-wrap: pretty;
 }
 
 .result-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -774,13 +791,14 @@ input[readonly] {
 
 .plan {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
+  min-height: 0;
+  align-items: stretch;
+  justify-items: center;
 }
 
-.advice-panel,
 .schedule-panel {
+  width: min(100%, 720px);
+  min-height: 0;
   padding: 18px;
   border: 1px solid oklch(1 0 0 / 0.72);
   border-radius: 16px;
@@ -803,54 +821,9 @@ p {
   margin-top: 0;
 }
 
-.advice-panel h2 {
-  margin-bottom: 14px;
-  font-size: 1.12rem;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
-.advice-list {
-  display: grid;
-  gap: 10px;
-}
-
-.advice-list p {
-  display: flex;
-  gap: 9px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.55;
-}
-
-.advice-list svg {
-  flex: 0 0 auto;
-  margin-top: 4px;
-  color: oklch(0.48 0.12 160);
-}
-
 .schedule-panel {
-  max-height: min(590px, calc(100vh - 210px));
+  max-height: 100%;
   overflow: auto;
-}
-
-.schedule-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.schedule-panel-head .eyebrow {
-  margin-bottom: 0;
-}
-
-.schedule-panel-head span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
 }
 
 .schedule-list {
@@ -887,27 +860,18 @@ p {
 
 .schedule-content {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
 }
 
 .schedule-content h3 {
-  margin: 0 0 4px;
-  font-size: 1rem;
+  margin: 0;
+  font-size: 1.04rem;
   line-height: 1.35;
 }
 
-.schedule-content p,
-.why {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.94rem;
-  line-height: 1.5;
-}
-
-.schedule-item.is-complete .schedule-content h3,
-.schedule-item.is-complete .schedule-content p {
+.schedule-item.is-complete .schedule-content h3 {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
   text-decoration-color: oklch(0.66 0.04 235 / 0.55);
@@ -929,40 +893,6 @@ p {
 .todo-check:hover {
   border-color: oklch(0.68 0.08 170);
   background: oklch(0.96 0.035 168);
-}
-
-.priority {
-  display: inline-flex;
-  min-width: 30px;
-  min-height: 24px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  color: oklch(0.34 0.08 214);
-  background: oklch(0.94 0.04 205);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.priority-high {
-  color: oklch(0.42 0.16 25);
-  background: oklch(0.93 0.055 22);
-}
-
-.priority-medium {
-  color: oklch(0.38 0.095 82);
-  background: oklch(0.95 0.055 88);
-}
-
-.priority-low {
-  color: oklch(0.33 0.07 185);
-  background: oklch(0.94 0.045 188);
-}
-
-.why {
-  padding-top: 9px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
 }
 
 .later {
@@ -1143,13 +1073,14 @@ p {
   }
 
   .result-area {
-    margin: 0 auto 48px;
+    height: 100vh;
+    min-height: 100vh;
+    margin: 0 auto;
     padding: 76px 16px 38px;
   }
 
   .composer-closed .result-area {
-    min-height: auto;
-    align-items: start;
+    align-items: center;
   }
 
   .app-has-result.composer-open .home-stage {
@@ -1166,25 +1097,30 @@ p {
     font-size: 1.05rem;
   }
 
-  .result-head {
-    align-items: flex-start;
+  .result-shell {
+    height: calc(100vh - 114px);
+    max-height: calc(100vh - 114px);
   }
 
-  .result-actions {
-    justify-content: flex-start;
+  .result-top {
+    flex-wrap: wrap;
   }
 
-  .result-head h1 {
+  .result-top p {
     font-size: 1.42rem;
   }
 
+  .result-actions {
+    justify-content: center;
+  }
+
   .schedule-panel {
-    max-height: none;
-    overflow: visible;
+    max-height: 100%;
+    overflow: auto;
   }
 
   .plan {
-    grid-template-columns: 1fr;
+    min-height: 0;
   }
 }
 
@@ -1258,30 +1194,47 @@ p {
   }
 
   .result-area {
+    height: 100vh;
+    min-height: 100vh;
     padding-right: 12px;
     padding-left: 12px;
   }
 
-  .result-head {
-    display: grid;
+  .result-shell {
+    gap: 14px;
+  }
+
+  .result-top {
+    flex-wrap: wrap;
+    min-height: 88px;
+  }
+
+  .result-top p {
+    font-size: 1.24rem;
+    line-height: 1.45;
   }
 
   .result-actions {
     display: flex;
     flex-wrap: wrap;
-    width: 100%;
+    width: auto;
+  }
+
+  .top-tools {
+    top: 14px;
+    right: 12px;
+    gap: 6px;
   }
 
   .export-options {
-    right: auto;
-    left: 0;
+    right: 0;
+    left: auto;
   }
 
   .continue-button {
     justify-self: start;
   }
 
-  .advice-panel,
   .schedule-panel {
     padding: 17px;
     border-radius: 14px;
@@ -1295,10 +1248,5 @@ p {
 
   .schedule-content {
     grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .priority {
-    grid-column: 2;
-    justify-self: start;
   }
 }

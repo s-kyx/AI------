@@ -116,7 +116,7 @@ function parseJsonFromModel(content) {
 function normalizePlan(parsed) {
   return {
     summary: parsed.summary || '先做最重要的一小步。',
-    advice: Array.isArray(parsed.advice) ? parsed.advice.slice(0, 2) : [],
+    advice: [],
     schedule: Array.isArray(parsed.schedule)
       ? parsed.schedule.slice(0, 10).map((item) => ({
           ...item,
@@ -147,19 +147,8 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function priorityClass(priority) {
-  if (priority === '高') {
-    return 'priority-high';
-  }
-  if (priority === '低') {
-    return 'priority-low';
-  }
-  return 'priority-medium';
-}
-
 function buildExportHtml(result) {
   const schedule = Array.isArray(result?.schedule) ? result.schedule.slice(0, 10) : [];
-  const advice = Array.isArray(result?.advice) ? result.advice.slice(0, 2) : [];
   const rows = schedule
     .map(
       (item) => `
@@ -167,8 +156,6 @@ function buildExportHtml(result) {
           <td>${escapeHtml(item.date)}</td>
           <td>${escapeHtml(item.time)}</td>
           <td>${escapeHtml(item.title)}</td>
-          <td>${escapeHtml(item.action)}</td>
-          <td><span class="priority priority-${escapeHtml(item.priority || '中')}">${escapeHtml(item.priority || '中')}</span></td>
           <td class="done-cell">${item.completed ? '✓' : ''}</td>
         </tr>`
     )
@@ -217,17 +204,6 @@ function buildExportHtml(result) {
           color: #58706f;
           white-space: nowrap;
         }
-        .advice {
-          margin: 14px 0 16px;
-          padding: 10px 12px;
-          border: 1px solid #d8eceb;
-          border-radius: 10px;
-          background: #f5fbfb;
-        }
-        .advice p {
-          margin: 4px 0;
-          color: #344a57;
-        }
         table {
           width: 100%;
           border-collapse: collapse;
@@ -248,20 +224,8 @@ function buildExportHtml(result) {
         }
         th:nth-child(1), td:nth-child(1) { width: 15%; }
         th:nth-child(2), td:nth-child(2) { width: 15%; }
-        th:nth-child(3), td:nth-child(3) { width: 19%; }
-        th:nth-child(4), td:nth-child(4) { width: 33%; }
-        th:nth-child(5), td:nth-child(5) { width: 8%; text-align: center; }
-        th:nth-child(6), td:nth-child(6) { width: 10%; text-align: center; }
-        .priority {
-          display: inline-block;
-          min-width: 24px;
-          padding: 2px 7px;
-          border-radius: 999px;
-          font-weight: 700;
-        }
-        .priority-高 { color: #9f2d26; background: #ffe4df; }
-        .priority-中 { color: #8a5c00; background: #fff1c4; }
-        .priority-低 { color: #23675f; background: #dff5f0; }
+        th:nth-child(3), td:nth-child(3) { width: 58%; }
+        th:nth-child(4), td:nth-child(4) { width: 12%; text-align: center; }
         .done-cell {
           height: 32px;
           color: #16835f;
@@ -277,13 +241,12 @@ function buildExportHtml(result) {
     <body>
       <main class="sheet">
         <header class="doc-head">
-          <h1>${escapeHtml(result?.summary || '先做最重要的一步')}</h1>
+          <h1>${escapeHtml(result?.summary || '慢慢来，先完成眼前这一小步。')}</h1>
           <p class="date">${createdAt}</p>
         </header>
-        ${advice.length ? `<section class="advice">${advice.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</section>` : ''}
         <table>
           <thead>
-            <tr><th>日期</th><th>时间</th><th>事项</th><th>具体动作</th><th>重要性</th><th>完成</th></tr>
+            <tr><th>日期</th><th>时间</th><th>待办事项</th><th>完成</th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
@@ -371,9 +334,9 @@ function App() {
     setComposerOpen(true);
   };
 
-  const continueWriting = () => {
-    setComposerOpen(true);
-    setStatus({ loading: false, error: '' });
+  const toggleComposer = () => {
+    setComposerOpen((current) => !current);
+    setStatus((current) => ({ ...current, error: '' }));
   };
 
   const showCompletionToast = () => {
@@ -494,7 +457,7 @@ function App() {
           {
             role: 'system',
             content:
-              '你是一个温柔、克制、专业的心理支持型时间规划助手。用户可能正处在焦虑、低落、抑郁或现实压力很重的状态。你要先在内部做专业分析：从心理负荷、现实压力来源、任务重要程度、紧急程度、完成阻力、可执行性、用户当前精力、时间顺序和依赖关系来判断安排。输出时不要展示分析过程，只给用户最低阅读成本的结果：一句鼓励、最多两条心理舒缓建议、一个清晰可勾选的待办菜单。待办必须贴合现实，优先安排最重要且能推进局面的事项，任务要小，能完成，不压迫。不要做医学诊断，不替代专业心理治疗；如果用户表达自伤或伤害他人的风险，要温和建议立刻联系身边可信任的人、当地紧急电话或专业危机热线。必须只输出 JSON，不要 Markdown，不要解释你的思考过程。',
+              '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。你要先在内部做深度分析：识别用户描述中的情绪负荷、现实压力来源、模糊概念、隐藏任务、回避点、完成阻力、时间约束、依赖关系、重要程度、紧急程度、用户当前精力和可执行性。分析时参考心理学视角：认知负荷、情绪调节、任务启动阻力、自我效能感、模糊性带来的焦虑、下一步行动的清晰度。输出时绝对不要展示分析、解释、原因、建议讲解或长段文字。你只给用户最低阅读成本的结果：左侧一句鼓励，右侧一个纯待办清单。遇到笼统、复杂、过大的事情时，必须把它去模糊化，拆成几条可以马上执行的小任务；每条待办本身就要完整、具体、可勾选。不要做医学诊断，不替代专业心理治疗；如果用户表达自伤或伤害他人的风险，要把 summary 写成温和的求助提醒，并把 schedule 安排成立刻联系身边可信任的人、当地紧急电话或专业危机热线等现实动作。必须只输出 JSON，不要 Markdown。',
           },
           {
             role: 'user',
@@ -502,7 +465,7 @@ function App() {
               today: todayText(),
               user_input: input.trim(),
               output_contract:
-                '输出 JSON：{"summary":"","advice":[""],"schedule":[{"date":"YYYY-MM-DD","time":"HH:mm-HH:mm","title":"","action":"","why":"","priority":"高|中|低"}],"later":[""]}。summary 只能一句话，18 个中文字以内，必须鼓励、安定、不夸张。advice 只能 1 到 2 条，每条 22 个中文字以内，从心理舒缓角度给用户降低压力。schedule 是最终核心，数量要根据用户输入的事情多少和复杂度决定：简单输入 3 到 5 条，事情多时 6 到 10 条；必须按日期时间升序。time 必须尽量精确成 HH:mm-HH:mm，即使用户没有给具体时间，也要根据今天日期、任务长短、现实节奏合理估算，不要输出上午、下午、晚上这种模糊词。每条 title 14 个中文字以内，action 32 个中文字以内，必须是具体下一步动作；priority 按重要程度、紧急程度、现实压力和可完成性综合判断；why 只给内部排序参考，16 个中文字以内，前端可能不展示。不要只给建议而不给待办。不要输出长段文字。不要要求用户再补很多表单信息。',
+                '输出 JSON：{"summary":"","schedule":[{"date":"YYYY-MM-DD","time":"HH:mm-HH:mm","title":"","completed":false}],"later":[]}。summary 只能一句话，18 个中文字以内，必须鼓励、安定、不夸张。不要输出 advice、reason、why、action、description 等解释字段。schedule 是最终核心，数量根据用户输入复杂度决定：简单输入 3 到 5 条，事情多或笼统时 6 到 10 条；必须按日期时间升序。time 必须尽量精确成 HH:mm-HH:mm，即使用户没有给具体时间，也要根据今天日期、任务长短、现实节奏合理估算，不要输出上午、下午、晚上这种模糊词。每条 title 是唯一会显示给用户的待办文字，必须是事情本身，不要描述、不要讲解、不要原因、不要价值判断；18 个中文字以内，动词开头，具体到下一步动作。遇到“工作很乱、客户要跟、项目推进、论文、找工作、搬家、学习、变好、做副业”等大概念时，主动拆成几条明确小任务。不要要求用户再补很多表单信息。',
             }),
           },
         ],
@@ -568,19 +531,22 @@ function App() {
         <span className="soft-noise" />
       </div>
 
-      <button
-        className="settings-trigger"
-        type="button"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          setSettingsOpen(true);
-        }}
-        onClick={() => setSettingsOpen(true)}
-        aria-label="打开模型设置"
-        title="模型设置"
-      >
-        <Settings size={19} />
-      </button>
+      <div className="top-tools">
+        {result ? <ExportMenu result={result} /> : null}
+        <button
+          className="settings-trigger"
+          type="button"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setSettingsOpen(true);
+          }}
+          onClick={() => setSettingsOpen(true)}
+          aria-label="打开模型设置"
+          title="模型设置"
+        >
+          <Settings size={19} />
+        </button>
+      </div>
 
       {showComposer ? (
         <section className="home-stage">
@@ -627,7 +593,7 @@ function App() {
 
       {result ? (
         <section className="result-area">
-          <PlanResult result={result} onContinue={continueWriting} onToggleItem={toggleScheduleItem} />
+          <PlanResult result={result} composerOpen={composerOpen} onToggleComposer={toggleComposer} onToggleItem={toggleScheduleItem} />
         </section>
       ) : null}
 
@@ -719,108 +685,82 @@ function Celebration() {
   );
 }
 
-function PlanResult({ result, onContinue, onToggleItem }) {
-  const advice = Array.isArray(result.advice) ? result.advice.slice(0, 2) : [];
+function PlanResult({ result, composerOpen, onToggleComposer, onToggleItem }) {
   const schedule = Array.isArray(result.schedule) ? result.schedule.slice(0, 10) : [];
-  const completedCount = schedule.filter((item) => item.completed).length;
-  const totalCount = schedule.length;
 
   return (
     <div className="result-shell">
-      <div className="result-head">
-        <div>
-          <h1>先做最重要的一步</h1>
-        </div>
+      <div className="result-top">
+        <p>{result.summary || '慢慢来，先完成眼前这一小步。'}</p>
         <div className="result-actions">
-          <details className="export-menu">
-            <summary className="export-button">
-              <Download size={16} />
-              导出
-              <ChevronDown size={15} />
-            </summary>
-            <div className="export-options">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                  printPdf(result);
-                }}
-              >
-                <FileText size={15} />
-                PDF
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.currentTarget.closest('details')?.removeAttribute('open');
-                  downloadWord(result);
-                }}
-              >
-                <Download size={15} />
-                Word
-              </button>
-            </div>
-          </details>
-          <button className="continue-button" type="button" onClick={onContinue}>
-            <Plus size={17} />
-            继续补充
+          <button className="continue-button" type="button" onClick={onToggleComposer} aria-expanded={composerOpen}>
+            {composerOpen ? <X size={17} /> : <Plus size={17} />}
+            {composerOpen ? '收起补充' : '继续补充'}
           </button>
         </div>
       </div>
 
       <div className="plan">
-      <section className="advice-panel">
-        <h2>{result.summary || '先把最堵的事情拆成第一步。'}</h2>
-        {advice.length ? (
-          <div className="advice-list">
-            {advice.map((item, index) => (
-              <p key={`${item}-${index}`}>
-                <CheckCircle2 size={17} />
-                {item}
-              </p>
+        <section className="schedule-panel" aria-label="待办清单">
+          <div className="schedule-list">
+            {schedule.map((item, index) => (
+              <article className={`schedule-item ${item.completed ? 'is-complete' : ''}`} key={`${item.date}-${item.time}-${index}`}>
+                <div className="schedule-time">
+                  <strong>{item.date || '待定日期'}</strong>
+                  <span>{item.time || '待定时间'}</span>
+                </div>
+                <div className="schedule-content">
+                  <button
+                    className="todo-check"
+                    type="button"
+                    onClick={() => onToggleItem(index)}
+                    aria-label={item.completed ? '标记为未完成' : '标记为已完成'}
+                    aria-pressed={item.completed}
+                  >
+                    {item.completed ? <CheckCircle2 size={18} /> : null}
+                  </button>
+                  <h3>{item.title}</h3>
+                </div>
+              </article>
             ))}
           </div>
-        ) : null}
-      </section>
-
-      <section className="schedule-panel">
-        <div className="schedule-panel-head">
-          <p className="eyebrow">待办清单</p>
-          {totalCount ? (
-            <span>
-              {completedCount}/{totalCount} 已完成
-            </span>
-          ) : null}
-        </div>
-        <div className="schedule-list">
-          {schedule.map((item, index) => (
-            <article className={`schedule-item ${item.completed ? 'is-complete' : ''}`} key={`${item.date}-${item.time}-${index}`}>
-              <div className="schedule-time">
-                <strong>{item.date || '待定日期'}</strong>
-                <span>{item.time || '待定时间'}</span>
-              </div>
-              <div className="schedule-content">
-                <button
-                  className="todo-check"
-                  type="button"
-                  onClick={() => onToggleItem(index)}
-                  aria-label={item.completed ? '标记为未完成' : '标记为已完成'}
-                  aria-pressed={item.completed}
-                >
-                  {item.completed ? <CheckCircle2 size={18} /> : null}
-                </button>
-                <div>
-                  <h3>{item.title}</h3>
-                  <p>{item.action}</p>
-                </div>
-                <span className={`priority ${priorityClass(item.priority)}`}>{item.priority || '中'}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+        </section>
       </div>
     </div>
+  );
+}
+
+function ExportMenu({ result }) {
+  return (
+    <details className="export-menu">
+      <summary className="export-button">
+        <Download size={16} />
+        导出
+        <ChevronDown size={15} />
+      </summary>
+      <div className="export-options">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.currentTarget.closest('details')?.removeAttribute('open');
+            printPdf(result);
+          }}
+        >
+          <FileText size={15} />
+          PDF
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.currentTarget.closest('details')?.removeAttribute('open');
+            downloadWord(result);
+          }}
+        >
+          <Download size={15} />
+          Word
+        </button>
+      </div>
+    </details>
   );
 }
 
