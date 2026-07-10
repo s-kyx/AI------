@@ -23,6 +23,12 @@ const AI_KEY = 'anxiety-planner.ai.v1';
 const defaultInput = '';
 const defaultResult = null;
 
+const SYSTEM_PROMPT =
+  '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。你要先在内部做深度分析：识别用户描述中的情绪负荷、现实压力来源、模糊概念、隐藏任务、回避点、完成阻力、时间约束、依赖关系、重要程度、紧急程度、用户当前精力和可执行性。分析时参考心理学视角：认知负荷、情绪调节、任务启动阻力、自我效能感、模糊性带来的焦虑、下一步行动的清晰度。\n\n排程时必须主动校正“规划谬误”：人通常会低估工作所需时间、被打断的损耗和启动成本。把 time 视为用户真实预留的完整时间窗口，不是只计算顺利执行所需的理想时长。根据任务难度、不确定性、创造性、沟通协作、等待依赖和用户当前情绪负荷，保守估算完成时间，并把缓冲直接放进 time。默认给日常明确任务至少 50% 缓冲；写代码、排错、剪辑、写作、学习、资料整理、需要沟通或结果不确定的任务至少 100% 缓冲；陌生、复杂或高度不确定的任务可给更多缓冲。每个任务之间至少留 15 分钟空档；一天只安排约 60% 的可用时间，保留其余时间给突发情况、休息和拖延恢复。除非用户明确要求或存在硬截止，不要把一天排满，也不要为了凑数量拆出没有意义的微步骤。优先在白天安排需要专注的工作，避免把任务排到用户当前时间之前或过晚。若存在真实截止时间，先保护截止时间；若工作量明显不可能按时完成，优先安排最能推进结果的部分和尽早沟通/交付初稿的动作，不要假装能全部赶完。\n\n输出时绝对不要展示分析、解释、原因、建议讲解或长段文字。你只给用户最低阅读成本的结果：左侧一句鼓励，右侧一个纯待办清单。遇到笼统、复杂、过大的事情时，必须把它去模糊化，拆成几条可以马上执行的小任务；每条待办本身就要完整、具体、可勾选。不要做医学诊断，不替代专业心理治疗；如果用户表达自伤或伤害他人的风险，要把 summary 写成温和的求助提醒，并把 schedule 安排成立刻联系身边可信任的人、当地紧急电话或专业危机热线等现实动作。必须只输出 JSON，不要 Markdown。';
+
+const OUTPUT_CONTRACT =
+  '输出 JSON：{"summary":"","schedule":[{"date":"YYYY-MM-DD","time":"HH:mm-HH:mm","title":"","estimated_minutes":30,"buffer_minutes":30,"completed":false}],"later":[]}。summary 只能一句话，18 个中文字以内，必须鼓励、安定、不夸张。不要输出 advice、reason、why、action、description 等解释字段。schedule 是最终核心，按日期时间升序。小而明确的一件事可只排 1 到 3 条；普通事项排 3 到 5 条；事情多或笼统时才排 6 到 10 条。time 必须精确为 HH:mm-HH:mm，且表示已包含缓冲的完整预留时间窗口；estimated_minutes 是乐观但合理的纯执行分钟数，buffer_minutes 是已包含在 time 中的缓冲分钟数，二者为正整数，仅用于排程校验、不向用户展示。buffer_minutes 不得少于 15 分钟，且必须符合系统提示词中的比例。即使用户没有给具体时间，也要结合当前日期、当前时间、任务长短和现实节奏合理安排；不要输出上午、下午、晚上等模糊词。每条 title 是唯一会显示给用户的待办文字，必须是事情本身，不要描述、不要讲解、不要原因、不要价值判断；18 个中文字以内，动词开头，具体到下一步动作。遇到“工作很乱、客户要跟、项目推进、论文、找工作、搬家、学习、变好、做副业”等大概念时，主动拆成几条明确小任务；但不要为了凑数量加入无价值的准备动作。不要要求用户再补很多表单信息。';
+
 const modelOptions = [
   {
     id: 'deepseek-v4-pro',
@@ -30,32 +36,32 @@ const modelOptions = [
     provider: 'DeepSeek',
     model: 'deepseek-v4-pro',
     baseUrl: 'https://api.deepseek.com',
+    apiKeyUrl: 'https://platform.deepseek.com/api_keys',
     reasoning: true,
   },
   {
-    id: 'kimi-k2-6',
-    label: 'Kimi K2.6',
-    provider: 'Kimi',
-    model: 'kimi-k2.6',
-    baseUrl: 'https://api.moonshot.ai/v1',
+    id: 'doubao-seed-2-1-pro-260628',
+    label: '豆包 Seed 2.1 Pro',
+    provider: '字节跳动',
+    model: 'doubao-seed-2-1-pro-260628',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKeyUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apikey',
+    api: 'responses',
   },
   {
     id: 'glm-5-2',
     label: 'GLM 5.2',
-    provider: 'Z.AI',
+    provider: '智谱清言',
     model: 'glm-5.2',
-    baseUrl: 'https://api.z.ai/api/paas/v4/',
-  },
-  {
-    id: 'minimax-m3',
-    label: 'MiniMax M3',
-    provider: 'MiniMax',
-    model: 'MiniMax-M3',
-    baseUrl: 'https://api.minimax.io/v1',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+    apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
   },
 ];
 
 const defaultModel = modelOptions[0];
+const legacyProviderIds = {
+  'doubao-seed-2-1-pro': 'doubao-seed-2-1-pro-260628',
+};
 const defaultAi = {
   providerId: defaultModel.id,
   baseUrl: defaultModel.baseUrl,
@@ -107,10 +113,40 @@ function todayText() {
   });
 }
 
+function currentPlanningContext() {
+  const now = new Date();
+  const currentDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join(
+    '-',
+  );
+  const currentTime = [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0')].join(':');
+  return {
+    today: todayText(),
+    current_date: currentDate,
+    current_time: currentTime,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
+
 function parseJsonFromModel(content) {
   const clean = content.replace(/```json|```/g, '').trim();
   const jsonText = clean.match(/\{[\s\S]*\}/)?.[0] || clean;
   return JSON.parse(jsonText);
+}
+
+function getResponseContent(data) {
+  if (typeof data?.output_text === 'string') {
+    return data.output_text;
+  }
+
+  for (const item of data?.output || []) {
+    for (const content of item?.content || []) {
+      if (content?.type === 'output_text' && typeof content.text === 'string') {
+        return content.text;
+      }
+    }
+  }
+
+  return '';
 }
 
 function normalizePlan(parsed) {
@@ -120,6 +156,12 @@ function normalizePlan(parsed) {
     schedule: Array.isArray(parsed.schedule)
       ? parsed.schedule.slice(0, 10).map((item) => ({
           ...item,
+          estimated_minutes: Number.isFinite(Number(item.estimated_minutes))
+            ? Number(item.estimated_minutes)
+            : undefined,
+          buffer_minutes: Number.isFinite(Number(item.buffer_minutes))
+            ? Number(item.buffer_minutes)
+            : undefined,
           completed: Boolean(item.completed),
         }))
       : [],
@@ -128,15 +170,17 @@ function normalizePlan(parsed) {
 }
 
 function getSelectedModel(ai) {
+  const providerId = legacyProviderIds[ai?.providerId] || ai?.providerId;
   return (
-    modelOptions.find((option) => option.id === ai.providerId) ||
+    modelOptions.find((option) => option.id === providerId) ||
     modelOptions.find((option) => option.model === ai.model && option.baseUrl === ai.baseUrl) ||
     defaultModel
   );
 }
 
 function getStoredApiKey(ai, modelId) {
-  return ai?.apiKeys?.[modelId] || '';
+  const legacyModelId = Object.entries(legacyProviderIds).find(([, currentId]) => currentId === modelId)?.[0];
+  return ai?.apiKeys?.[modelId] || ai?.apiKeys?.[legacyModelId] || '';
 }
 
 function escapeHtml(value) {
@@ -312,11 +356,13 @@ function App() {
   const [ai, setAi] = useStoredState(AI_KEY, defaultAi);
   const [status, setStatus] = useState({ loading: false, error: '' });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(() => !Boolean(readStorage(RESULT_KEY, defaultResult)));
   const [completionToast, setCompletionToast] = useState('');
   const [celebrating, setCelebrating] = useState(false);
   const toastTimerRef = useRef(null);
   const celebrationTimerRef = useRef(null);
+  const modelPickerRef = useRef(null);
   const selectedModel = getSelectedModel(ai);
 
   const canSubmit = input.trim().length >= 8 && !status.loading;
@@ -337,6 +383,16 @@ function App() {
   const toggleComposer = () => {
     setComposerOpen((current) => !current);
     setStatus((current) => ({ ...current, error: '' }));
+  };
+
+  const openSettings = () => {
+    setModelPickerOpen(false);
+    setSettingsOpen(true);
+  };
+
+  const closeSettings = () => {
+    setModelPickerOpen(false);
+    setSettingsOpen(false);
   };
 
   const showCompletionToast = () => {
@@ -416,12 +472,17 @@ function App() {
   useEffect(() => {
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') {
-        setSettingsOpen(false);
+        if (modelPickerOpen) {
+          setModelPickerOpen(false);
+          modelPickerRef.current?.querySelector('.model-picker-trigger')?.focus();
+          return;
+        }
+        closeSettings();
       }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, []);
+  }, [modelPickerOpen]);
 
   useEffect(() => {
     return () => {
@@ -447,29 +508,40 @@ function App() {
 
     setStatus({ loading: true, error: '' });
     try {
-      const endpoint = `${selectedModel.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-      const requestBody = {
-        model: selectedModel.model,
-        response_format: {
-          type: 'json_object',
-        },
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。你要先在内部做深度分析：识别用户描述中的情绪负荷、现实压力来源、模糊概念、隐藏任务、回避点、完成阻力、时间约束、依赖关系、重要程度、紧急程度、用户当前精力和可执行性。分析时参考心理学视角：认知负荷、情绪调节、任务启动阻力、自我效能感、模糊性带来的焦虑、下一步行动的清晰度。输出时绝对不要展示分析、解释、原因、建议讲解或长段文字。你只给用户最低阅读成本的结果：左侧一句鼓励，右侧一个纯待办清单。遇到笼统、复杂、过大的事情时，必须把它去模糊化，拆成几条可以马上执行的小任务；每条待办本身就要完整、具体、可勾选。不要做医学诊断，不替代专业心理治疗；如果用户表达自伤或伤害他人的风险，要把 summary 写成温和的求助提醒，并把 schedule 安排成立刻联系身边可信任的人、当地紧急电话或专业危机热线等现实动作。必须只输出 JSON，不要 Markdown。',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              today: todayText(),
-              user_input: input.trim(),
-              output_contract:
-                '输出 JSON：{"summary":"","schedule":[{"date":"YYYY-MM-DD","time":"HH:mm-HH:mm","title":"","completed":false}],"later":[]}。summary 只能一句话，18 个中文字以内，必须鼓励、安定、不夸张。不要输出 advice、reason、why、action、description 等解释字段。schedule 是最终核心，数量根据用户输入复杂度决定：简单输入 3 到 5 条，事情多或笼统时 6 到 10 条；必须按日期时间升序。time 必须尽量精确成 HH:mm-HH:mm，即使用户没有给具体时间，也要根据今天日期、任务长短、现实节奏合理估算，不要输出上午、下午、晚上这种模糊词。每条 title 是唯一会显示给用户的待办文字，必须是事情本身，不要描述、不要讲解、不要原因、不要价值判断；18 个中文字以内，动词开头，具体到下一步动作。遇到“工作很乱、客户要跟、项目推进、论文、找工作、搬家、学习、变好、做副业”等大概念时，主动拆成几条明确小任务。不要要求用户再补很多表单信息。',
-            }),
-          },
-        ],
-      };
+      const isResponsesApi = selectedModel.api === 'responses';
+      const endpoint = `${selectedModel.baseUrl.replace(/\/+$/, '')}/${isResponsesApi ? 'responses' : 'chat/completions'}`;
+      const userContent = JSON.stringify({
+        ...currentPlanningContext(),
+        user_input: input.trim(),
+        output_contract: OUTPUT_CONTRACT,
+      });
+      const requestBody = isResponsesApi
+        ? {
+            model: selectedModel.model,
+            instructions: `${SYSTEM_PROMPT}\n\n${OUTPUT_CONTRACT}`,
+            input: [
+              {
+                role: 'user',
+                content: [{ type: 'input_text', text: userContent }],
+              },
+            ],
+          }
+        : {
+            model: selectedModel.model,
+            response_format: {
+              type: 'json_object',
+            },
+            messages: [
+              {
+                role: 'system',
+                content: SYSTEM_PROMPT,
+              },
+              {
+                role: 'user',
+                content: userContent,
+              },
+            ],
+          };
 
       if (selectedModel.reasoning) {
         requestBody.thinking = {
@@ -507,7 +579,10 @@ function App() {
       }
 
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
+      const content = isResponsesApi ? getResponseContent(data) : data.choices?.[0]?.message?.content || '';
+      if (!content) {
+        throw new Error('模型没有返回可解析的文本。');
+      }
       const parsed = normalizePlan(parseJsonFromModel(content));
       setResult({ ...parsed, createdAt: new Date().toISOString() });
       setStatus({ loading: false, error: '' });
@@ -538,9 +613,9 @@ function App() {
           type="button"
           onPointerDown={(event) => {
             event.preventDefault();
-            setSettingsOpen(true);
+            openSettings();
           }}
-          onClick={() => setSettingsOpen(true)}
+          onClick={openSettings}
           aria-label="打开模型设置"
           title="模型设置"
         >
@@ -598,24 +673,34 @@ function App() {
       ) : null}
 
       {settingsOpen ? (
-        <div className="settings-modal" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
+        <div className="settings-modal" role="presentation" onMouseDown={closeSettings}>
           <section
             className="settings-panel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-title"
-            onMouseDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => {
+              if (!modelPickerRef.current?.contains(event.target)) {
+                setModelPickerOpen(false);
+              }
+              event.stopPropagation();
+            }}
           >
             <div className="settings-panel-head">
               <h2 id="settings-title">模型设置</h2>
-              <button type="button" onClick={() => setSettingsOpen(false)} aria-label="关闭设置">
+              <button type="button" onClick={closeSettings} aria-label="关闭设置">
                 <X size={18} />
               </button>
             </div>
 
             <div className="settings-body">
               <label>
-                API Key
+                <span className="field-label">
+                  API Key
+                  <a className="api-key-link" href={selectedModel.apiKeyUrl} target="_blank" rel="noreferrer">
+                    获取 API Key
+                  </a>
+                </span>
                 <span className="key-input">
                   <KeyRound size={15} />
                   <input
@@ -637,23 +722,59 @@ function App() {
                   />
                 </span>
               </label>
-              <label>
+              <div className="model-field">
                 模型
-                <select value={selectedModel.id} onChange={(event) => changeModel(event.target.value)}>
-                  {modelOptions.map((option) => (
-                    <option value={option.id} key={option.id}>
-                      {option.provider} · {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="model-picker" ref={modelPickerRef}>
+                  <button
+                    className="model-picker-trigger"
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded={modelPickerOpen}
+                    aria-controls={modelPickerOpen ? 'model-option-list' : undefined}
+                    aria-label={`选择模型，当前为 ${selectedModel.label}`}
+                    onClick={() => setModelPickerOpen((current) => !current)}
+                  >
+                    <span className="model-picker-current">
+                      <span>{selectedModel.label}</span>
+                      <small>{selectedModel.provider}</small>
+                    </span>
+                    <ChevronDown className={modelPickerOpen ? 'is-open' : ''} size={18} aria-hidden="true" />
+                  </button>
+                  {modelPickerOpen ? (
+                    <div className="model-picker-menu" id="model-option-list" role="listbox" aria-label="选择模型">
+                      {modelOptions.map((option) => {
+                        const isSelected = option.id === selectedModel.id;
+                        return (
+                          <button
+                            className={`model-picker-option${isSelected ? ' is-selected' : ''}`}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            key={option.id}
+                            onClick={() => {
+                              changeModel(option.id);
+                              setModelPickerOpen(false);
+                            }}
+                          >
+                            <span className="model-picker-option-copy">
+                              <span>{option.label}</span>
+                              <small>{option.provider}</small>
+                            </span>
+                            {isSelected ? <CheckCircle2 size={18} aria-hidden="true" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
               <label>
                 Base URL
                 <input value={selectedModel.baseUrl} readOnly />
               </label>
             </div>
 
-            <button className="modal-done" type="button" onClick={() => setSettingsOpen(false)}>
+            <button className="modal-done" type="button" onClick={closeSettings}>
               完成
             </button>
           </section>
