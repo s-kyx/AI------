@@ -139,6 +139,30 @@ button {
   gap: 8px;
 }
 
+.brand-lockup {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: oklch(0.3 0.045 35);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Noto Serif SC", serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.brand-lockup img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 6px 18px oklch(0.56 0.08 40 / 0.12);
+}
+
 .settings-trigger {
   display: inline-flex;
   width: 44px;
@@ -1290,6 +1314,19 @@ p {
 }
 
 @media (max-width: 560px) {
+  .brand-lockup {
+    top: 14px;
+    left: 12px;
+    gap: 7px;
+    font-size: 0.98rem;
+  }
+
+  .brand-lockup img {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
   .home-stage {
     padding-right: 12px;
     padding-left: 12px;

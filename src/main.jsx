@@ -22,6 +22,7 @@ const AI_KEY = 'anxiety-planner.ai.v1';
 
 const defaultInput = '';
 const defaultResult = null;
+const loadingComfortMessages = ['马上好', '再等等', '不要急', '快好了'];
 
 const SYSTEM_PROMPT =
   '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。你要先在内部做深度分析：识别用户描述中的情绪负荷、现实压力来源、模糊概念、隐藏任务、回避点、完成阻力、时间约束、依赖关系、重要程度、紧急程度、用户当前精力和可执行性。分析时参考心理学视角：认知负荷、情绪调节、任务启动阻力、自我效能感、模糊性带来的焦虑、下一步行动的清晰度。\n\n排程时必须主动校正“规划谬误”：人通常会低估工作所需时间、被打断的损耗和启动成本。把 time 视为用户真实预留的完整时间窗口，不是只计算顺利执行所需的理想时长。根据任务难度、不确定性、创造性、沟通协作、等待依赖和用户当前情绪负荷，保守估算完成时间，并把缓冲直接放进 time。默认给日常明确任务至少 50% 缓冲；写代码、排错、剪辑、写作、学习、资料整理、需要沟通或结果不确定的任务至少 100% 缓冲；陌生、复杂或高度不确定的任务可给更多缓冲。每个任务之间至少留 15 分钟空档；一天只安排约 60% 的可用时间，保留其余时间给突发情况、休息和拖延恢复。除非用户明确要求或存在硬截止，不要把一天排满，也不要为了凑数量拆出没有意义的微步骤。优先在白天安排需要专注的工作，避免把任务排到用户当前时间之前或过晚。若存在真实截止时间，先保护截止时间；若工作量明显不可能按时完成，优先安排最能推进结果的部分和尽早沟通/交付初稿的动作，不要假装能全部赶完。\n\n输出时绝对不要展示分析、解释、原因、建议讲解或长段文字。你只给用户最低阅读成本的结果：左侧一句鼓励，右侧一个纯待办清单。遇到笼统、复杂、过大的事情时，必须把它去模糊化，拆成几条可以马上执行的小任务；每条待办本身就要完整、具体、可勾选。不要做医学诊断，不替代专业心理治疗；如果用户表达自伤或伤害他人的风险，要把 summary 写成温和的求助提醒，并把 schedule 安排成立刻联系身边可信任的人、当地紧急电话或专业危机热线等现实动作。必须只输出 JSON，不要 Markdown。';
@@ -214,7 +215,7 @@ function buildExportHtml(result) {
   <html>
     <head>
       <meta charset="utf-8" />
-      <title>待办清单</title>
+      <title>先做一点 · 待办清单</title>
       <style>
         @page { size: A4; margin: 14mm; }
         * { box-sizing: border-box; }
@@ -304,7 +305,7 @@ function downloadWord(result) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `AI待办菜单-${new Date().toISOString().slice(0, 10)}.doc`;
+  link.download = `先做一点-${new Date().toISOString().slice(0, 10)}.doc`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -355,6 +356,7 @@ function App() {
   const [result, setResult] = useStoredState(RESULT_KEY, defaultResult);
   const [ai, setAi] = useStoredState(AI_KEY, defaultAi);
   const [status, setStatus] = useState({ loading: false, error: '' });
+  const [loadingLabel, setLoadingLabel] = useState('分析中');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(() => !Boolean(readStorage(RESULT_KEY, defaultResult)));
@@ -495,6 +497,31 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!status.loading) {
+      setLoadingLabel('分析中');
+      return undefined;
+    }
+
+    let messageIndex = 0;
+    let rotationTimer = null;
+    const comfortTimer = window.setTimeout(() => {
+      setLoadingLabel(loadingComfortMessages[messageIndex]);
+      messageIndex = (messageIndex + 1) % loadingComfortMessages.length;
+      rotationTimer = window.setInterval(() => {
+        setLoadingLabel(loadingComfortMessages[messageIndex]);
+        messageIndex = (messageIndex + 1) % loadingComfortMessages.length;
+      }, 3000);
+    }, 3200);
+
+    return () => {
+      window.clearTimeout(comfortTimer);
+      if (rotationTimer) {
+        window.clearInterval(rotationTimer);
+      }
+    };
+  }, [status.loading]);
+
   const generatePlan = async () => {
     if (!input.trim()) {
       setStatus({ loading: false, error: '先把让你烦的事情写进去。' });
@@ -606,6 +633,11 @@ function App() {
         <span className="soft-noise" />
       </div>
 
+      <div className="brand-lockup" aria-label="先做一点">
+        <img src="/logo.png" alt="" />
+        <span>先做一点</span>
+      </div>
+
       <div className="top-tools">
         {result ? <ExportMenu result={result} /> : null}
         <button
@@ -650,7 +682,7 @@ function App() {
                   </button>
                   <button className="primary-button" type="button" onClick={generatePlan} disabled={!canSubmit}>
                     {status.loading ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
-                    {status.loading ? '分析中' : hasResult ? '重新分析' : '开始分析'}
+                    {status.loading ? loadingLabel : hasResult ? '重新分析' : '开始分析'}
                   </button>
                 </div>
               </div>
