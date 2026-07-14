@@ -16,14 +16,9 @@ import {
   X,
 } from 'lucide-react';
 import ClarificationPanel from './components/ClarificationPanel';
-import {
-  MAX_CLARIFICATION_QUESTIONS,
-  MAX_AGENT_FOCUS_AREAS,
-  ROUTING_CONTRACT,
-  getReasoningStrategy,
-  needsGoalClarification,
-  normalizeClarificationQuestions,
-} from './lib/clarification';
+import AnalysisModeToggle from './components/AnalysisModeToggle';
+import { getAnalysisStrategy } from './lib/analysisModes/index.js';
+import { normalizeClarificationQuestions } from './lib/clarification';
 import './styles.css';
 
 const INPUT_KEY = 'anxiety-planner.input.v1';
@@ -33,9 +28,10 @@ const AI_KEY = 'anxiety-planner.ai.v1';
 const defaultInput = '';
 const defaultResult = null;
 const loadingComfortMessages = ['马上好', '再等等', '不要急', '快好了'];
+const MODEL_REQUEST_TIMEOUT_MS = 90_000;
 
 const SYSTEM_PROMPT =
-  '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。先在内部识别用户描述中的现实压力来源、模糊概念、隐藏任务、完成阻力、时间约束、依赖关系、重要程度、紧急程度和当前精力。只有当缺失的信息会明显改变下一步或排程时，才提出可点击的澄清问题。\n\n排程时必须主动校正“规划谬误”：人通常会低估工作所需时间、被打断的损耗和启动成本。把 time 视为用户真实预留的完整时间窗口，不是只计算顺利执行所需的理想时长。根据任务难度、不确定性、创造性、沟通协作、等待依赖和用户当前情绪负荷，保守估算完成时间，并把缓冲直接放进 time。默认给日常明确任务至少 50% 缓冲；写代码、排错、剪辑、写作、学习、资料整理、需要沟通或结果不确定的任务至少 100% 缓冲；陌生、复杂或高度不确定的任务可给更多缓冲。每个任务之间至少留 15 分钟空档；一天只安排约 60% 的可用时间，保留其余时间给突发情况、休息和拖延恢复。除非用户明确要求或存在硬截止，不要把一天排满，也不要为了凑数量拆出没有意义的微步骤。优先在白天安排需要专注的工作，避免把任务排到用户当前时间之前或过晚。若存在真实截止时间，先保护截止时间；若工作量明显不可能按时完成，优先安排最能推进结果的部分和尽早沟通/交付初稿的动作，不要假装能全部赶完。\n\n不要展示内部分析、解释、原因或长段建议。不要做医学诊断，不替代专业心理治疗。如果用户表达自伤、伤害他人或即时危险风险，不要进入普通澄清问题；改为 type 为 plan 的温和现实求助提醒与立刻联系可信任的人、当地紧急服务或专业危机支持的动作。';
+  '你是一个温柔、克制、专业的心理支持型任务澄清助手。用户可能正处在焦虑、低落、拖延、自责或现实压力很重的状态。先在内部识别用户描述中的现实压力来源、模糊概念、隐藏任务、完成阻力、时间约束、依赖关系、重要程度、紧急程度和当前精力。是否澄清、询问多少问题以及如何收束，必须严格遵循当前分析模式自己的契约。\n\n排程时必须主动校正“规划谬误”：人通常会低估工作所需时间、被打断的损耗和启动成本。把 time 视为用户真实预留的完整时间窗口，不是只计算顺利执行所需的理想时长。根据任务难度、不确定性、创造性、沟通协作、等待依赖和用户当前情绪负荷，保守估算完成时间，并把缓冲直接放进 time。默认给日常明确任务至少 50% 缓冲；写代码、排错、剪辑、写作、学习、资料整理、需要沟通或结果不确定的任务至少 100% 缓冲；陌生、复杂或高度不确定的任务可给更多缓冲。每个任务之间至少留 15 分钟空档；一天只安排约 60% 的可用时间，保留其余时间给突发情况、休息和拖延恢复。除非用户明确要求或存在硬截止，不要把一天排满，也不要为了凑数量拆出没有意义的微步骤。优先在白天安排需要专注的工作，避免把任务排到用户当前时间之前或过晚。若存在真实截止时间，先保护截止时间；若工作量明显不可能按时完成，优先安排最能推进结果的部分和尽早沟通/交付初稿的动作，不要假装能全部赶完。\n\n不要展示内部分析、解释、原因或长段建议。不要做医学诊断，不替代专业心理治疗。如果用户表达自伤、伤害他人或即时危险风险，不要进入普通澄清问题；改为 type 为 plan 的温和现实求助提醒与立刻联系可信任的人、当地紧急服务或专业危机支持的动作。';
 
 const modelOptions = [
   {
@@ -136,7 +132,7 @@ function currentPlanningContext() {
 }
 
 function parseJsonFromModel(content) {
-  const clean = content.replace(/```json|```/g, '').trim();
+  const clean = content.replace(/```(?:json)?/gi, '').trim();
   const jsonText = clean.match(/\{[\s\S]*\}/)?.[0] || clean;
   return JSON.parse(jsonText);
 }
@@ -148,7 +144,7 @@ function getResponseContent(data) {
 
   for (const item of data?.output || []) {
     for (const content of item?.content || []) {
-      if (content?.type === 'output_text' && typeof content.text === 'string') {
+      if (typeof content?.text === 'string') {
         return content.text;
       }
     }
@@ -157,23 +153,47 @@ function getResponseContent(data) {
   return '';
 }
 
+function getChatCompletionContent(data) {
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content.map((item) => item?.text || item?.content || '').join('');
+  }
+  return '';
+}
+
 function normalizePlan(parsed) {
+  const schedule = Array.isArray(parsed.schedule)
+    ? parsed.schedule
+        .slice(0, 10)
+        .map((item, index) => ({
+          ...item,
+          date: typeof item?.date === 'string' ? item.date.trim() : '',
+          time: typeof item?.time === 'string' ? item.time.trim() : '',
+          title: typeof item?.title === 'string' ? item.title.trim().slice(0, 40) : '',
+          hint: typeof item?.hint === 'string' ? item.hint.trim().slice(0, 40) : '',
+          estimated_minutes: Number.isFinite(Number(item?.estimated_minutes))
+            ? Number(item.estimated_minutes)
+            : undefined,
+          buffer_minutes: Number.isFinite(Number(item?.buffer_minutes)) ? Number(item.buffer_minutes) : undefined,
+          completed: Boolean(item?.completed),
+          _index: index,
+        }))
+        .filter((item) => item.title)
+        .sort((left, right) => {
+          const leftTime = `${left.date} ${left.time}`;
+          const rightTime = `${right.date} ${right.time}`;
+          return leftTime.localeCompare(rightTime) || left._index - right._index;
+        })
+        .map(({ _index, ...item }) => item)
+    : [];
+
   return {
     summary: parsed.summary || '先做最重要的一小步。',
     advice: [],
-    schedule: Array.isArray(parsed.schedule)
-      ? parsed.schedule.slice(0, 10).map((item) => ({
-          ...item,
-          hint: typeof item.hint === 'string' ? item.hint.trim().slice(0, 40) : '',
-          estimated_minutes: Number.isFinite(Number(item.estimated_minutes))
-            ? Number(item.estimated_minutes)
-            : undefined,
-          buffer_minutes: Number.isFinite(Number(item.buffer_minutes))
-            ? Number(item.buffer_minutes)
-            : undefined,
-          completed: Boolean(item.completed),
-        }))
-      : [],
+    schedule,
     later: Array.isArray(parsed.later) ? parsed.later : [],
   };
 }
@@ -371,6 +391,7 @@ function App() {
   const [ai, setAi] = useStoredState(AI_KEY, defaultAi);
   const [status, setStatus] = useState({ loading: false, error: '' });
   const [clarification, setClarification] = useState(null);
+  const [deepAnalysis, setDeepAnalysis] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState('分析中');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -381,6 +402,7 @@ function App() {
   const celebrationTimerRef = useRef(null);
   const modelPickerRef = useRef(null);
   const jsonModeSupportRef = useRef({});
+  const requestAbortControllerRef = useRef(null);
   const selectedModel = getSelectedModel(ai);
 
   const canSubmit = input.trim().length > 0 && !status.loading && !clarification;
@@ -392,6 +414,8 @@ function App() {
     .join(' ');
 
   const clearAll = () => {
+    requestAbortControllerRef.current?.abort();
+    requestAbortControllerRef.current = null;
     setInput('');
     setResult(null);
     setClarification(null);
@@ -505,6 +529,8 @@ function App() {
 
   useEffect(() => {
     return () => {
+      requestAbortControllerRef.current?.abort();
+      requestAbortControllerRef.current = null;
       if (toastTimerRef.current) {
         window.clearTimeout(toastTimerRef.current);
       }
@@ -547,6 +573,7 @@ function App() {
     forcePlan = false,
     forceClarification = false,
     repairAttempt = false,
+    analysisMode = 'standard',
   }) => {
     if (!originalInput.trim()) {
       setStatus({ loading: false, error: '先把让你烦的事情写进去。' });
@@ -558,9 +585,15 @@ function App() {
       return;
     }
 
-    const mustClarifyBeforePlanning =
-      !forcePlan && questionCount === 0 && (forceClarification || needsGoalClarification(originalInput));
-    const reasoningStrategy = getReasoningStrategy({
+    const analysisStrategy = getAnalysisStrategy(analysisMode);
+    const mustClarifyBeforePlanning = analysisStrategy.shouldClarify({
+      input: originalInput,
+      answers,
+      questionCount,
+      forcePlan,
+      forceClarification,
+    });
+    const reasoningStrategy = analysisStrategy.getReasoningStrategy({
       input: originalInput,
       answerCount: answers.length,
       questionCount,
@@ -568,6 +601,10 @@ function App() {
       requireClarification: mustClarifyBeforePlanning,
     });
     setStatus({ loading: true, error: '' });
+    requestAbortControllerRef.current?.abort();
+    const requestController = new AbortController();
+    requestAbortControllerRef.current = requestController;
+    const timeoutId = window.setTimeout(() => requestController.abort(), MODEL_REQUEST_TIMEOUT_MS);
     try {
       const isResponsesApi = selectedModel.api === 'responses';
       const endpoint = `${selectedModel.baseUrl.replace(/\/+$/, '')}/${isResponsesApi ? 'responses' : 'chat/completions'}`;
@@ -575,26 +612,19 @@ function App() {
         ...currentPlanningContext(),
         user_input: originalInput.trim(),
         selected_answers: answers,
-        clarification_state: {
-          agent_mode: 'bounded_planning_agent',
-          max_focus_areas: MAX_AGENT_FOCUS_AREAS,
-          prioritization: ['硬截止', '阻塞多件事', '高代价或高情绪负荷', '用户明确强调'],
-          workflow: ['观察原文和已选答案', '排序不确定点', '每次只追问一个问题', '判断是否足够', '收束为计划'],
-          asked_question_count: questionCount,
-          remaining_question_count: Math.max(0, MAX_CLARIFICATION_QUESTIONS - questionCount),
+        clarification_state: analysisStrategy.buildClarificationState({
+          questionCount,
           round,
-          force_plan_now: forcePlan,
-          must_clarify_before_planning: mustClarifyBeforePlanning,
-        },
-        output_contract: ROUTING_CONTRACT,
+          forcePlan,
+          mustClarify: mustClarifyBeforePlanning,
+        }),
+        output_contract: analysisStrategy.routingContract,
       });
-      const instructions = `${SYSTEM_PROMPT}\n\n${ROUTING_CONTRACT}\n\n${
-        forcePlan
-          ? '现在必须输出 type 为 plan 的最终计划。不要再提出问题；只使用已有原文和选择。'
-          : mustClarifyBeforePlanning
-            ? '这是一项缺少起点或时间范围的学习目标。现在必须输出 1 到 2 个 type 为 clarify 的选择题，不能直接排程。'
-          : '若原始信息已足够，请直接输出 type 为 plan。不要为了追问而追问。'
-      }`;
+      const instructions = `${SYSTEM_PROMPT}\n\n${analysisStrategy.routingContract}\n\n${analysisStrategy.buildInstruction({
+        forcePlan,
+        mustClarify: mustClarifyBeforePlanning,
+        repairAttempt,
+      })}`;
       const useJsonMode = !isResponsesApi && jsonModeSupportRef.current[selectedModel.id] !== false;
       const requestBody = isResponsesApi
         ? {
@@ -634,6 +664,7 @@ function App() {
       const callModel = (body) =>
         fetch(endpoint, {
           method: 'POST',
+          signal: requestController.signal,
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${activeApiKey.trim()}`,
@@ -661,7 +692,7 @@ function App() {
       }
 
       const data = await response.json();
-      const content = isResponsesApi ? getResponseContent(data) : data.choices?.[0]?.message?.content || '';
+      const content = isResponsesApi ? getResponseContent(data) : getChatCompletionContent(data);
       if (!content) {
         throw new Error('模型没有返回可解析的文本。');
       }
@@ -669,9 +700,12 @@ function App() {
       const questions = normalizeClarificationQuestions(
         parsed,
         originalInput,
-        MAX_CLARIFICATION_QUESTIONS - questionCount,
+        analysisStrategy.maximumQuestionCount - questionCount,
       );
-      if (mustClarifyBeforePlanning && questions.length === 0) {
+      if (!analysisStrategy.isQuestionBatchValid({
+        mustClarify: mustClarifyBeforePlanning,
+        questionCount: questions.length,
+      })) {
         if (!repairAttempt) {
           return requestPlan({
             originalInput,
@@ -680,9 +714,10 @@ function App() {
             round,
             forceClarification: true,
             repairAttempt: true,
+            analysisMode: analysisStrategy.id,
           });
         }
-        throw new Error('这件事还缺少关键信息，请重新分析一次。');
+        throw new Error(analysisStrategy.invalidQuestionMessage);
       }
       if (!forcePlan && questions.length > 0) {
         setClarification({
@@ -691,6 +726,7 @@ function App() {
           questions,
           questionCount: questionCount + questions.length,
           round: round + 1,
+          analysisMode: analysisStrategy.id,
         });
         setStatus({ loading: false, error: '' });
         return;
@@ -707,15 +743,29 @@ function App() {
       }
 
       const plan = normalizePlan(parsed);
+      if (plan.schedule.length === 0) {
+        throw new Error('模型没有返回可执行的待办计划，请再试一次。');
+      }
       setResult({ ...plan, createdAt: new Date().toISOString() });
       setClarification(null);
       setStatus({ loading: false, error: '' });
       setComposerOpen(false);
     } catch (error) {
+      if (requestAbortControllerRef.current !== requestController) {
+        return;
+      }
       setStatus({
         loading: false,
-        error: error.message?.slice(0, 260) || '生成失败，请检查 API Key、模型名称或网络限制。',
+        error:
+          error?.name === 'AbortError'
+            ? '请求等待超过 90 秒，请检查网络或模型配置后再试。'
+            : error.message?.slice(0, 260) || '生成失败，请检查 API Key、模型名称或网络限制。',
       });
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (requestAbortControllerRef.current === requestController) {
+        requestAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -727,7 +777,7 @@ function App() {
     }
     setResult(null);
     setClarification(null);
-    requestPlan({ originalInput });
+    requestPlan({ originalInput, analysisMode: deepAnalysis ? 'deep' : 'standard' });
   };
 
   const continueClarification = (currentAnswers) => {
@@ -735,7 +785,7 @@ function App() {
     requestPlan({
       ...clarification,
       answers: [...clarification.answers, ...currentAnswers],
-      forcePlan: clarification.questionCount >= MAX_CLARIFICATION_QUESTIONS,
+      forcePlan: true,
     });
   };
 
@@ -817,13 +867,26 @@ function App() {
                   />
 
                   <div className="composer-footer">
+                    <AnalysisModeToggle
+                      active={deepAnalysis}
+                      disabled={status.loading}
+                      onChange={setDeepAnalysis}
+                    />
                     <div className="main-actions">
                       <button className="clear-button" type="button" onClick={clearAll} title="清空" aria-label="清空">
                         <Trash2 size={16} />
                       </button>
                       <button className="primary-button" type="button" onClick={generatePlan} disabled={!canSubmit}>
                         {status.loading ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />}
-                        {status.loading ? loadingLabel : hasResult ? '重新分析' : '开始分析'}
+                        {status.loading
+                          ? loadingLabel
+                          : deepAnalysis
+                            ? hasResult
+                              ? '重新深度分析'
+                              : '开始深度分析'
+                            : hasResult
+                              ? '重新分析'
+                              : '开始分析'}
                       </button>
                     </div>
                   </div>

@@ -23,15 +23,14 @@ function answerForQuestion(question, selection, customText) {
 }
 
 export default function ClarificationPanel({ session, loading, onContinue, onStop }) {
-  const { questions = [], questionCount = 0 } = session;
+  const { questions = [], questionCount = 0, analysisMode = 'standard' } = session;
+  const isDeepMode = analysisMode === 'deep';
   const [selections, setSelections] = useState({});
   const [customTexts, setCustomTexts] = useState({});
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   useEffect(() => {
     setSelections({});
     setCustomTexts({});
-    setCurrentQuestionIndex(0);
   }, [questions]);
 
   const currentAnswers = useMemo(
@@ -41,13 +40,6 @@ export default function ClarificationPanel({ session, loading, onContinue, onSto
         .filter(Boolean),
     [customTexts, questions, selections],
   );
-  const activeQuestion = questions[currentQuestionIndex];
-  const activeSelection = activeQuestion ? selections[activeQuestion.id] : null;
-  const activeAnswer = activeQuestion
-    ? answerForQuestion(activeQuestion, activeSelection, customTexts[activeQuestion.id] || '')
-    : null;
-  const isLastQuestion = currentQuestionIndex === questions.length - 1;
-
   const chooseOption = (questionId, option) => {
     setSelections((current) => ({ ...current, [questionId]: { kind: 'option', value: option } }));
   };
@@ -56,50 +48,46 @@ export default function ClarificationPanel({ session, loading, onContinue, onSto
     setSelections((current) => ({ ...current, [questionId]: { kind: 'custom' } }));
   };
 
-  const advance = () => {
-    if (!activeAnswer) return;
-    if (isLastQuestion) {
-      onContinue(currentAnswers);
-      return;
-    }
-    setCurrentQuestionIndex((current) => current + 1);
-  };
-
   return (
     <section className="clarification-panel" aria-label="补充几个关键信息">
       <div className="clarification-heading">
         <div>
-          <p>我想先确认一点点</p>
+          <p>{isDeepMode ? '为了更贴合你的情况' : '我想确认几件关键小事'}</p>
+          <small>
+            {isDeepMode
+              ? `一次回答这 ${questions.length} 个问题，提交后 AI 会深入整理并直接给出安排。`
+              : '一次选完，提交后就直接为你安排。'}
+          </small>
         </div>
       </div>
 
       <div className="clarification-questions">
-        {activeQuestion ? (
-          (() => {
-            const isCustom = activeSelection?.kind === 'custom';
-            return (
-              <fieldset className="clarification-question" key={`${activeQuestion.id}-${questionCount}-${currentQuestionIndex}`} disabled={loading}>
+        {questions.map((question, index) => {
+          const selection = selections[question.id];
+          const isCustom = selection?.kind === 'custom';
+          return (
+            <fieldset className="clarification-question" key={`${question.id}-${questionCount}-${index}`} disabled={loading}>
               <legend>
-                <span>关于「{activeQuestion.evidence}」</span>
-                {activeQuestion.text}
+                <span>关于「{question.evidence}」</span>
+                {question.text}
               </legend>
               <div className="clarification-options">
-                {activeQuestion.options.map((option) => (
+                {question.options.map((option) => (
                   <button
-                    className={`clarification-option${activeSelection?.kind === 'option' && activeSelection.value === option ? ' is-selected' : ''}`}
+                    className={`clarification-option${selection?.kind === 'option' && selection.value === option ? ' is-selected' : ''}`}
                     type="button"
                     key={option}
-                    aria-pressed={activeSelection?.kind === 'option' && activeSelection.value === option}
-                    onClick={() => chooseOption(activeQuestion.id, option)}
+                    aria-pressed={selection?.kind === 'option' && selection.value === option}
+                    onClick={() => chooseOption(question.id, option)}
                   >
                     {option}
                   </button>
                 ))}
                 <button
-                  className={`clarification-option${activeSelection?.kind === 'option' && activeSelection.value === '我不确定' ? ' is-selected' : ''}`}
+                  className={`clarification-option${selection?.kind === 'option' && selection.value === '我不确定' ? ' is-selected' : ''}`}
                   type="button"
-                  aria-pressed={activeSelection?.kind === 'option' && activeSelection.value === '我不确定'}
-                  onClick={() => chooseOption(activeQuestion.id, '我不确定')}
+                  aria-pressed={selection?.kind === 'option' && selection.value === '我不确定'}
+                  onClick={() => chooseOption(question.id, '我不确定')}
                 >
                   我不确定
                 </button>
@@ -107,7 +95,7 @@ export default function ClarificationPanel({ session, loading, onContinue, onSto
                   className={`clarification-option clarification-option-custom${isCustom ? ' is-selected' : ''}`}
                   type="button"
                   aria-pressed={isCustom}
-                  onClick={() => chooseCustom(activeQuestion.id)}
+                  onClick={() => chooseCustom(question.id)}
                 >
                   补充一下我的情况
                 </button>
@@ -115,28 +103,32 @@ export default function ClarificationPanel({ session, loading, onContinue, onSto
               {isCustom ? (
                 <textarea
                   className="clarification-input"
-                  value={customTexts[activeQuestion.id] || ''}
+                  value={customTexts[question.id] || ''}
                   onChange={(event) =>
-                    setCustomTexts((current) => ({ ...current, [activeQuestion.id]: event.target.value }))
+                    setCustomTexts((current) => ({ ...current, [question.id]: event.target.value }))
                   }
                   placeholder="只补充和这个问题有关的情况"
                   rows={2}
                 />
               ) : null}
             </fieldset>
-            );
-          })()
-        ) : null}
+          );
+        })}
       </div>
 
       <div className="clarification-actions">
         <div className="clarification-main-actions">
           <button className="clarification-stop" type="button" onClick={() => onStop(currentAnswers)} disabled={loading}>
-            按已有信息安排
+            按已有信息给建议
           </button>
-          <button className="clarification-continue" type="button" onClick={advance} disabled={!activeAnswer || loading}>
+          <button
+            className="clarification-continue"
+            type="button"
+            onClick={() => onContinue(currentAnswers)}
+            disabled={currentAnswers.length !== questions.length || loading}
+          >
             {loading ? <Loader2 className="spin" size={17} /> : null}
-            {loading ? '正在理解' : isLastQuestion ? '继续' : '下一题'}
+            {loading ? '正在安排' : '按这些信息安排'}
           </button>
         </div>
       </div>

@@ -406,6 +406,15 @@ textarea:focus-visible {
   letter-spacing: 0.01em;
 }
 
+.clarification-heading small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 560;
+  line-height: 1.55;
+}
+
 .clarification-questions {
   display: grid;
   align-self: center;
@@ -569,9 +578,77 @@ textarea:focus-visible {
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 16px;
   pointer-events: none;
+}
+
+.analysis-mode-toggle {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px 0 13px;
+  border: 1px solid oklch(0.86 0.026 225 / 0.82);
+  border-radius: 999px;
+  color: oklch(0.35 0.04 246);
+  background: oklch(1 0 0 / 0.62);
+  box-shadow: 0 6px 18px oklch(0.58 0.05 225 / 0.08);
+  pointer-events: auto;
+  text-align: left;
+  transition: border-color 170ms ease, background 170ms ease, transform 170ms ease;
+}
+
+.analysis-mode-toggle:hover:not(:disabled) {
+  border-color: oklch(0.68 0.075 214 / 0.72);
+  background: oklch(1 0 0 / 0.88);
+  transform: translateY(-1px);
+}
+
+.analysis-mode-toggle.is-active {
+  border-color: oklch(0.65 0.09 210 / 0.76);
+  color: oklch(0.27 0.065 222);
+  background: oklch(0.94 0.04 207 / 0.9);
+}
+
+.analysis-mode-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.analysis-mode-label {
+  font-size: 0.84rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.analysis-mode-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: oklch(0.82 0.025 230);
+  transition: background 170ms ease;
+}
+
+.analysis-mode-switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: oklch(1 0 0);
+  box-shadow: 0 2px 5px oklch(0.35 0.03 240 / 0.18);
+  transition: transform 170ms ease;
+}
+
+.analysis-mode-toggle.is-active .analysis-mode-switch {
+  background: oklch(0.62 0.11 202);
+}
+
+.analysis-mode-toggle.is-active .analysis-mode-switch span {
+  transform: translateX(14px);
 }
 
 .main-actions {
@@ -1586,6 +1663,15 @@ p {
   .composer-footer {
     display: grid;
     justify-items: stretch;
+  }
+
+  .analysis-mode-toggle {
+    justify-self: start;
+  }
+
+  .app-has-result.composer-open .composer-input {
+    min-height: 230px;
+    padding: 28px 20px 134px;
   }
 
   .main-actions {
